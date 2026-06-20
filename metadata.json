@@ -1,0 +1,6 @@
+{
+  "name": "Touch-Flow Cafetería",
+  "description": "Sistema POS/TPV táctil local para cafeterías con panel de terminal PC, terminal móvil de camarero y gestión de tickets e informes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
