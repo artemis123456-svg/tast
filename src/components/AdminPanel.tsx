@@ -23,9 +23,30 @@ import {
   Layers,
   Box,
   MapPin,
-  Grid
+  Grid,
+  Users,
+  Percent,
+  Database,
+  Brain,
+  Clock,
+  Star
 } from 'lucide-react';
-import { Product, TicketConfig, PrinterConfig, ProductCategory, Table } from '../types';
+import { 
+  Product, 
+  TicketConfig, 
+  PrinterConfig, 
+  ProductCategory, 
+  Table,
+  Waiter,
+  Ingredient,
+  Supplier,
+  Batch,
+  Customer,
+  Reservation,
+  Promo,
+  CashSession,
+  AuditLog
+} from '../types';
 import { 
   saveConfig, 
   saveProduct, 
@@ -39,12 +60,31 @@ import {
   socket
 } from '../lib/api';
 
+import WaitersTab from './WaitersTab';
+import InventoryTab from './InventoryTab';
+import CrmTab from './CrmTab';
+import ReservationsTab from './ReservationsTab';
+import PromosTab from './PromosTab';
+import AuditTab from './AuditTab';
+import BackupsTab from './BackupsTab';
+import AiConsultingTab from './AiConsultingTab';
+
 interface AdminPanelProps {
   products: Product[];
   config: { ticket: TicketConfig; printer: PrinterConfig };
   onRefreshProducts: () => void;
   onRefreshConfig: () => void;
   orders: any[]; // For stats calculations
+  tables: Table[];
+  waiters: Waiter[];
+  ingredients: Ingredient[];
+  suppliers: Supplier[];
+  batches: Batch[];
+  customers: Customer[];
+  reservations: Reservation[];
+  promos: Promo[];
+  cashSessions: CashSession[];
+  auditLogs: AuditLog[];
 }
 
 export default function AdminPanel({ 
@@ -52,11 +92,37 @@ export default function AdminPanel({
   config, 
   onRefreshProducts, 
   onRefreshConfig,
-  orders 
+  orders,
+  tables,
+  waiters,
+  ingredients,
+  suppliers,
+  batches,
+  customers,
+  reservations,
+  promos,
+  cashSessions,
+  auditLogs
 }: AdminPanelProps) {
   
-  // Tabs: 'ticket' | 'inventory' | 'reports' | 'system' | 'tables'
-  const [activeTab, setActiveTab] = useState<'ticket' | 'inventory' | 'reports' | 'system' | 'tables'>('ticket');
+  // Tabs definition
+  const [activeTab, setActiveTab] = useState<
+    | 'ticket' 
+    | 'inventory' 
+    | 'waiters' 
+    | 'crm' 
+    | 'reservations' 
+    | 'promos' 
+    | 'reports' 
+    | 'tables' 
+    | 'audit' 
+    | 'backups' 
+    | 'ai' 
+    | 'system'
+  >('ticket');
+
+  // Sub-mode toggle for inventory tab
+  const [inventorySubMode, setInventorySubMode] = useState<'products' | 'raw'>('products');
 
   /* =========================================================================
      1. TICKET TEMPLATE & PRINTER CONFIG STATE
@@ -475,25 +541,32 @@ export default function AdminPanel({
         </div>
 
         {/* Tab Selector buttons */}
-        <div className="flex bg-[#0a0a0a] border border-[#FF00FF]/40 max-w-full overflow-x-auto scrollbar-none">
+        <div className="flex bg-[#0a0a0a] border border-[#FF00FF]/40 max-w-full overflow-x-auto scrollbar-none flex-nowrap shrink-0">
           {[
             { id: 'ticket', label: 'Ticket y Periféricos', icon: <Printer className="w-4 h-4" /> },
-            { id: 'inventory', label: 'Inventario / Alérgenos', icon: <Box className="w-4 h-4" /> },
-            { id: 'reports', label: 'Hacienda / Cierre Caja', icon: <ClipboardList className="w-4 h-4" /> },
+            { id: 'inventory', label: 'Inventario / Escandallos', icon: <Box className="w-4 h-4" /> },
+            { id: 'waiters', label: 'Personal / Camareros', icon: <Users className="w-4 h-4" /> },
+            { id: 'crm', label: 'Clientes CRM', icon: <Star className="w-4 h-4" /> },
+            { id: 'reservations', label: 'Reservas Mesas', icon: <Calendar className="w-4 h-4" /> },
+            { id: 'promos', label: 'Promociones / Packs', icon: <Percent className="w-4 h-4" /> },
             { id: 'tables', label: 'Distribución de Mesas', icon: <Grid className="w-4 h-4" /> },
+            { id: 'reports', label: 'Cierres de Caja', icon: <ClipboardList className="w-4 h-4" /> },
+            { id: 'audit', label: 'Registro de Auditoría', icon: <FileText className="w-4 h-4" /> },
+            { id: 'backups', label: 'Copias Seguridad', icon: <Database className="w-4 h-4" /> },
+            { id: 'ai', label: 'Consultor Inteligencia AI', icon: <Brain className="w-4 h-4 text-pink-400" /> },
             { id: 'system', label: 'Actualizaciones', icon: <RefreshCw className="w-4 h-4" /> }
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-2.5 text-[10px] font-black uppercase tracking-tighter border-r border-[#FF00FF]/30 last:border-r-0 transition-all flex items-center space-x-2 cursor-pointer ${
+              className={`px-3 py-2 text-[10px] font-mono font-black uppercase tracking-tighter border-r border-[#FF00FF]/30 last:border-r-0 transition-all flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
                 activeTab === tab.id 
                   ? 'bg-[#FF00FF] text-black italic font-black' 
                   : 'hover:bg-[#330033]/30 text-[#FF00FF]'
               }`}
             >
               {tab.icon}
-              <span className="truncate">{tab.label}</span>
+              <span>{tab.label}</span>
             </button>
           ))}
         </div>
@@ -708,11 +781,46 @@ export default function AdminPanel({
       {/* TAB CONTENT: 2. INVENTORY CONTROL AND CRUD */}
       {activeTab === 'inventory' && (
         <div className="space-y-4">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
-            <h2 className="text-zinc-200 font-bold text-sm uppercase tracking-wide flex items-center space-x-2">
-              <ClipboardList className="w-4 h-4 text-[#FF00FF]" />
-              <span>Gestión de Inventario de Alimentos</span>
-            </h2>
+          <div className="flex border-b border-zinc-900 pb-3 mb-2 space-x-2">
+            <button
+              type="button"
+              onClick={() => setInventorySubMode('products')}
+              className={`px-4 py-1.5 rounded-xl font-mono text-xs uppercase font-extrabold transition-all cursor-pointer ${
+                inventorySubMode === 'products'
+                  ? 'bg-[#FF00FF]/15 border border-[#FF00FF] text-[#FF00FF]'
+                  : 'bg-[#0a0a0a] border border-zinc-800 text-zinc-500 hover:text-white'
+              }`}
+            >
+              Catálogo de Productos / Carta
+            </button>
+            <button
+              type="button"
+              onClick={() => setInventorySubMode('raw')}
+              className={`px-4 py-1.5 rounded-xl font-mono text-xs uppercase font-extrabold transition-all cursor-pointer ${
+                inventorySubMode === 'raw'
+                  ? 'bg-[#FF00FF]/15 border border-[#FF00FF] text-[#FF00FF]'
+                  : 'bg-[#0a0a0a] border border-zinc-800 text-zinc-500 hover:text-white'
+              }`}
+            >
+              Control de Materias Primas / Escandallos
+            </button>
+          </div>
+
+          {inventorySubMode === 'raw' ? (
+            <InventoryTab 
+              ingredients={ingredients} 
+              suppliers={suppliers} 
+              batches={batches} 
+              products={products} 
+              onRefresh={onRefreshProducts} 
+            />
+          ) : (
+            <>
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                <h2 className="text-zinc-200 font-bold text-sm uppercase tracking-wide flex items-center space-x-2">
+                  <ClipboardList className="w-4 h-4 text-[#FF00FF]" />
+                  <span>Gestión de Inventario de Alimentos</span>
+                </h2>
 
             {/* Quick selectors / triggers */}
             <button
@@ -926,6 +1034,8 @@ export default function AdminPanel({
               </table>
             </div>
           </div>
+          </>
+          )}
         </div>
       )}
 
@@ -1437,6 +1547,35 @@ export default function AdminPanel({
             )}
           </div>
         </div>
+      )}
+
+      {/* NEW TPV PROFESSIONAL MODULES */}
+      {activeTab === 'waiters' && (
+        <WaitersTab waiters={waiters} onRefresh={onRefreshProducts} />
+      )}
+
+      {activeTab === 'crm' && (
+        <CrmTab customers={customers} onRefresh={onRefreshProducts} />
+      )}
+
+      {activeTab === 'reservations' && (
+        <ReservationsTab reservations={reservations} tables={tables} onRefresh={onRefreshProducts} />
+      )}
+
+      {activeTab === 'promos' && (
+        <PromosTab promos={promos} products={products} onRefresh={onRefreshProducts} />
+      )}
+
+      {activeTab === 'audit' && (
+        <AuditTab auditLogs={auditLogs} />
+      )}
+
+      {activeTab === 'backups' && (
+        <BackupsTab />
+      )}
+
+      {activeTab === 'ai' && (
+        <AiConsultingTab />
       )}
 
     </div>

@@ -458,7 +458,7 @@ export default function KioskDashboard({
               {tables
                 .filter(t => t.zona === activeTablesZona)
                 .map(t => {
-                  const isBusy = busyTableNumbers.has(t.number);
+                  const isBusy = busyTableNumbers.has(t.number) || t.status === 'busy';
                   return (
                     <button
                       key={t.id}
@@ -504,7 +504,7 @@ export default function KioskDashboard({
               
               <div className="space-y-1.5 max-h-[290px] overflow-y-auto pr-1">
                 {tables.map(t => {
-                  const isBusy = busyTableNumbers.has(t.number);
+                  const isBusy = busyTableNumbers.has(t.number) || t.status === 'busy';
                   return (
                     <button
                       key={t.id}

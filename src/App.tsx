@@ -20,7 +20,21 @@ import {
   RefreshCw,
   LogOut
 } from 'lucide-react';
-import { Product, Order, AppConfig, Table } from './types';
+import { 
+  Product, 
+  Order, 
+  AppConfig, 
+  Table,
+  Waiter,
+  Ingredient,
+  Supplier,
+  Batch,
+  Customer,
+  Reservation,
+  Promo,
+  CashSession,
+  AuditLog
+} from './types';
 import { fetchProducts, fetchOrders, fetchConfig, fetchTables, socket } from './lib/api';
 
 // Components
@@ -51,6 +65,17 @@ export default function App() {
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Extended POS states
+  const [waiters, setWaiters] = useState<Waiter[]>([]);
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [promos, setPromos] = useState<Promo[]>([]);
+  const [cashSessions, setCashSessions] = useState<CashSession[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+
   // Clock
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -77,8 +102,30 @@ export default function App() {
         printer: configData.printer,
         authPin: '1234' // local helper
       });
+
+      // Lazy load extended parameters
+      const [waitersRes, ingRes, supRes, batchRes, custRes, resvRes, promoRes, auditRes] = await Promise.all([
+        fetch('/api/waiters').then(r => r.json()).catch(() => []),
+        fetch('/api/ingredients').then(r => r.json()).catch(() => []),
+        fetch('/api/suppliers').then(r => r.json()).catch(() => []),
+        fetch('/api/batches').then(r => r.json()).catch(() => []),
+        fetch('/api/customers').then(r => r.json()).catch(() => []),
+        fetch('/api/reservations').then(r => r.json()).catch(() => []),
+        fetch('/api/promos').then(r => r.json()).catch(() => []),
+        fetch('/api/audit').then(r => r.json()).catch(() => [])
+      ]);
+
+      setWaiters(waitersRes);
+      setIngredients(ingRes);
+      setSuppliers(supRes);
+      setBatches(batchRes);
+      setCustomers(custRes);
+      setReservations(resvRes);
+      setPromos(promoRes);
+      setAuditLogs(auditRes);
+
     } catch (e: any) {
-      setErrorMessage('Aviso: Ejecutando en modo desconectado del PC central o re-conectando... ' + (e.message || ''));
+      setErrorMessage('Aviso: Conectando con el PC central... ' + (e.message || ''));
       console.warn('Backend unavailable, using default mockup values:', e);
     } finally {
       setIsDataLoading(false);
@@ -114,12 +161,39 @@ export default function App() {
       setProducts(newProducts);
     };
 
-    // Socket.io immediate listeners for other machines
+    // Socket listeners for extended collections
+    const handleInitialSync = (payload: any) => {
+      if (payload.products) setProducts(payload.products);
+      if (payload.orders) setOrders(payload.orders);
+      if (payload.tables) setTables(payload.tables);
+      if (payload.waiters) setWaiters(payload.waiters);
+      if (payload.ingredients) setIngredients(payload.ingredients);
+      if (payload.suppliers) setSuppliers(payload.suppliers);
+      if (payload.batches) setBatches(payload.batches);
+      if (payload.customers) setCustomers(payload.customers);
+      if (payload.reservations) setReservations(payload.reservations);
+      if (payload.promos) setPromos(payload.promos);
+      if (payload.cashSessions) setCashSessions(payload.cashSessions);
+      if (payload.auditLogs) setAuditLogs(payload.auditLogs);
+    };
+
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
     socket.on('tables-changed', handleTablesChanged);
     socket.on('orders-changed', handleOrdersChanged);
     socket.on('products-changed', handleProductsChanged);
+    
+    // Bind all dynamic real-time updates
+    socket.on('initial-sync', handleInitialSync);
+    socket.on('waiters-changed', (data) => setWaiters(data));
+    socket.on('ingredients-changed', (data) => setIngredients(data));
+    socket.on('suppliers-changed', (data) => setSuppliers(data));
+    socket.on('batches-changed', (data) => setBatches(data));
+    socket.on('customers-changed', (data) => setCustomers(data));
+    socket.on('reservations-changed', (data) => setReservations(data));
+    socket.on('promos-changed', (data) => setPromos(data));
+    socket.on('cash-changed', (data) => setCashSessions(data));
+    socket.on('audit-changed', (data) => setAuditLogs(data));
 
     socket.on('config-changed', (newConfig) => {
       setConfig(prev => prev ? { ...prev, ...newConfig } : { ticket: newConfig.ticket, printer: newConfig.printer, authPin: '1234' });
@@ -141,6 +215,16 @@ export default function App() {
       socket.off('tables-changed', handleTablesChanged);
       socket.off('orders-changed', handleOrdersChanged);
       socket.off('products-changed', handleProductsChanged);
+      socket.off('initial-sync', handleInitialSync);
+      socket.off('waiters-changed');
+      socket.off('ingredients-changed');
+      socket.off('suppliers-changed');
+      socket.off('batches-changed');
+      socket.off('customers-changed');
+      socket.off('reservations-changed');
+      socket.off('promos-changed');
+      socket.off('cash-changed');
+      socket.off('audit-changed');
       socket.off('config-changed');
     };
   }, []);
@@ -360,6 +444,16 @@ export default function App() {
                     onRefreshProducts={loadPOSData}
                     onRefreshConfig={loadPOSData}
                     orders={orders}
+                    tables={tables}
+                    waiters={waiters}
+                    ingredients={ingredients}
+                    suppliers={suppliers}
+                    batches={batches}
+                    customers={customers}
+                    reservations={reservations}
+                    promos={promos}
+                    cashSessions={cashSessions}
+                    auditLogs={auditLogs}
                   />
                 );
 
