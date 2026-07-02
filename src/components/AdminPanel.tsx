@@ -934,17 +934,17 @@ export default function AdminPanel({
             />
           ) : (
             <>
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-5">
                 <h2 className="text-zinc-200 font-bold text-sm uppercase tracking-wide flex items-center space-x-2">
                   <ClipboardList className="w-4 h-4 text-[#FF00FF]" />
                   <span>Gestión de Inventario de Alimentos</span>
                 </h2>
 
             {/* Quick selectors / triggers */}
-            <div className="flex space-x-2">
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
               <button
                 onClick={() => setIsAddingProduct(!isAddingProduct)}
-                className="bg-[#FF00FF] hover:bg-fuchsia-700 text-black px-4 py-2 font-mono font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center space-x-1 outline-none"
+                className="bg-[#FF00FF] hover:bg-fuchsia-700 text-black px-4 py-2 font-mono font-bold text-[11px] uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center space-x-1 outline-none"
               >
                 <Plus className="w-4 h-4" />
                 <span>Añadir Nuevo Producto</span>
@@ -952,7 +952,7 @@ export default function AdminPanel({
               <button
                 onClick={handleUpdateAllImages}
                 disabled={updatingAllImages}
-                className="bg-black hover:bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white px-4 py-2 font-mono font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center space-x-1.5 outline-none disabled:opacity-50"
+                className="bg-black hover:bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white px-4 py-2 font-mono font-bold text-[11px] uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center space-x-1.5 outline-none disabled:opacity-50"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${updatingAllImages ? 'animate-spin text-[#FF00FF]' : ''}`} />
                 <span>{updatingAllImages ? 'Actualizando...' : 'Actualizar Imágenes'}</span>
