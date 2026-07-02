@@ -4,6 +4,17 @@
  */
 
 export type ProductCategory = 
+  | 'Cafés'
+  | 'Tés'
+  | 'Refrescos'
+  | 'Zumos'
+  | 'Bocadillos'
+  | 'Tostadas'
+  | 'Pastelería'
+  | 'Bollería'
+  | 'Tapas'
+  | 'Menús'
+  | 'Postres'
   | 'Entrepans Freds' 
   | 'Entrepans Calents' 
   | 'Torrades' 

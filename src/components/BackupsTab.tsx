@@ -28,7 +28,7 @@ export default function BackupsTab() {
   const handleCreateBackup = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/backups', { method: 'POST' });
+      const res = await fetch('/api/backups/create', { method: 'POST' });
       if (res.ok) {
         alert('✅ Copia de seguridad generada con éxito y firmada en el disco.');
         fetchBackups();
@@ -44,7 +44,11 @@ export default function BackupsTab() {
     if (!confirm('⚠️ ¿ESTÁS SEGURO? Esta acción reemplazará la base de datos de ventas actual con este punto de restauración. El servidor se reiniciará inmediatamente.')) return;
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/backups/${id}/restore`, { method: 'POST' });
+      const res = await fetch('/api/backups/restore', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: id })
+      });
       if (res.ok) {
         alert('✅ Base de datos restaurada satisfactoriamente. Recargando aplicación...');
         window.location.reload();

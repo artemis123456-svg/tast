@@ -1,0 +1,87 @@
+{
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "npm run build",
+    "devPath": "http://localhost:3000",
+    "distDir": "../dist"
+  },
+  "package": {
+    "productName": "El Tast TPV",
+    "version": "1.0.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": true,
+      "shell": {
+        "all": true,
+        "execute": true,
+        "sidecar": true
+      }
+    },
+    "bundle": {
+      "active": true,
+      "category": "Office",
+      "copyright": "Copyright 2026 El Tast Cafeteria",
+      "deb": {
+        "depends": []
+      },
+      "externalBin": [],
+      "icon": [
+        "icons/32x32.png",
+        "icons/128x128.png",
+        "icons/128x128@2x.png",
+        "icons/icon.icns",
+        "icons/icon.ico"
+      ],
+      "identifier": "com.eltast.tpv",
+      "longDescription": "TPV Profesional para Cafetería y Restauración - El Tast S.L.",
+      "macOS": {
+        "frameworks": [],
+        "minimumSystemVersion": ""
+      },
+      "resources": [],
+      "shortDescription": "TPV Kiosco de Restauración Tactil",
+      "targets": "all",
+      "windows": {
+        "certificateThumbprint": null,
+        "digestAlgorithm": "sha256",
+        "nsis": {
+          "oneClick": true,
+          "perMachine": true,
+          "allowToChangeInstallationDirectory": false,
+          "installerIcon": "icons/icon.ico",
+          "uninstallerIcon": "icons/icon.ico",
+          "license": null,
+          "sidebarImagePath": null,
+          "headerImagePath": null
+        },
+        "wix": {
+          "language": "es-ES"
+        }
+      }
+    },
+    "security": {
+      "csp": null
+    },
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://releases.eltast.com/update/win64/{{current_version}}"
+      ],
+      "dialog": true,
+      "pubkey": "dW51c2VkX3B1YmxpY19rZXlfdGVtcGxhdGVfZm9yX3NpZ25pbmdfYnVpbGRz"
+    },
+    "windows": [
+      {
+        "fullscreen": true,
+        "height": 900,
+        "resizable": true,
+        "title": "El Tast TPV",
+        "width": 1440,
+        "maximized": true,
+        "decorations": false,
+        "transparent": false
+      }
+    ]
+  }
+}

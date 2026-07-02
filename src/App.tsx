@@ -319,6 +319,17 @@ export default function App() {
           {/* TELEMETRY, CLOCK & SWITCH DESIGN THEME */}
           <div className="flex items-center space-x-3.5 self-stretch md:self-auto justify-between md:justify-end">
             
+            {/* Network LED Indicator */}
+            <div 
+              className="flex items-center space-x-1.5 px-2 py-1 rounded bg-black/40 border border-zinc-900/60" 
+              title={isSocketConnected ? "Servidor Conectado (Websocket Sincronizado)" : "Reconectando con el TPV central..."}
+            >
+              <span className={`w-2 h-2 rounded-full ${isSocketConnected ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.75)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.75)] animate-pulse'}`} />
+              <span className="text-[10px] font-mono font-black text-zinc-400">
+                {isSocketConnected ? 'ONLINE' : 'RECONN'}
+              </span>
+            </div>
+
             {/* Clock */}
             <div className="flex items-center space-x-1.5 text-zinc-400 font-mono text-[11px] font-bold">
               <Clock className="w-3.5 h-3.5 text-[#FF00FF]" />
@@ -419,6 +430,7 @@ export default function App() {
                     onRefreshOrders={loadPOSData}
                     onRefreshProducts={loadPOSData}
                     activeStaffId={authToken ? 'Cajero Principal' : 'Terminal PC'}
+                    themeMode={themeMode}
                   />
                 );
 

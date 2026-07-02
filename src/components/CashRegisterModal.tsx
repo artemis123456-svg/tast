@@ -55,6 +55,47 @@ export default function CashRegisterModal({
   const [customInput, setCustomInput] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [drawerPulseActive, setDrawerPulseActive] = useState(false);
+
+  const triggerDrawerPulse = () => {
+    setDrawerPulseActive(true);
+    setTimeout(() => setDrawerPulseActive(false), 3000);
+    
+    // Play a mechanical drawer open sound effect (Rumble + Chime)
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      
+      // Part 1: Mechanical Slide Clack (Low Frequency rumble)
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'triangle';
+      osc1.frequency.setValueAtTime(120, ctx.currentTime);
+      osc1.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.15);
+      gain1.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain1.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start();
+      osc1.stop(ctx.currentTime + 0.15);
+      
+      // Part 2: Metallic bell ring ("Ding!")
+      setTimeout(() => {
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(1500, ctx.currentTime);
+        osc2.frequency.exponentialRampToValueAtTime(1000, ctx.currentTime + 0.4);
+        gain2.gain.setValueAtTime(0.08, ctx.currentTime);
+        gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start();
+        osc2.stop(ctx.currentTime + 0.4);
+      }, 50);
+    } catch (e) {
+      console.warn('Audio drawer unsupported:', e);
+    }
+  };
 
   // Update default states when total changes
   useEffect(() => {
@@ -124,6 +165,13 @@ export default function CashRegisterModal({
     try {
       const finalPaid = paymentMethod === 'Efectivo' ? deliveredValue : totalAmount;
       const finalChange = paymentMethod === 'Efectivo' ? changeToReturn : 0;
+      
+      // Trigger cash drawer automatic pulse on successful payment confirmation
+      triggerDrawerPulse();
+      
+      // Wait a tiny moment to show the visual signal in background before close
+      await new Promise(r => setTimeout(r, 700));
+      
       await onConfirm(finalPaid, finalChange, paymentMethod);
       onClose();
     } catch (err: any) {
@@ -483,6 +531,13 @@ export default function CashRegisterModal({
                 </div>
               )}
 
+              {drawerPulseActive && (
+                <div className="bg-emerald-950/40 border border-emerald-500/50 text-emerald-400 text-[10px] font-mono uppercase p-3 rounded-xl text-center animate-pulse shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+                  ⚡ [ESC/POS] SEÑAL ENVIADA AL CAJÓN PORTAMONEDAS<br />
+                  <span className="text-[8px] opacity-75">Impulso Eléctrico 24V (Pin 2 / RJ11) Exitoso</span>
+                </div>
+              )}
+
             </div>
 
             {/* ACTION BOTTOM ROW */}
@@ -495,6 +550,15 @@ export default function CashRegisterModal({
               >
                 <Printer className="w-4 h-4" />
                 <span>CONFIRMAR Y AUTO-IMPRIMIR TICKET</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={triggerDrawerPulse}
+                className="w-full py-2 bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-900/60 rounded-xl font-mono text-[9px] uppercase font-bold tracking-wider transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
+              >
+                <span>🔑</span>
+                <span>Impulso manual Apertura Cajón (ESC/POS)</span>
               </button>
               
               <div className="text-[8px] font-mono text-zinc-600 text-center uppercase tracking-wide">
