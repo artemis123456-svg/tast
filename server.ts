@@ -11,12 +11,15 @@ import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import PDFDocument from 'pdfkit';
 import { Product, Order, AppConfig, OrderItem, OrderStatus, ProductCategory, Table, Waiter, Ingredient, Supplier, Batch, Customer, Reservation, Promo, CashSession, AuditLog, Backup } from './src/types';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
+import sharp from 'sharp';
 
 // Establish relative paths
 const DB_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DB_DIR, 'db.json');
 const REPORTS_DIR = path.join(process.cwd(), 'Reportes');
+const IMAGES_DIR = path.join(DB_DIR, 'images');
+const CACHE_FILE = path.join(DB_DIR, 'image-cache.json');
 
 // Ensure database and files exist
 if (!fs.existsSync(DB_DIR)) {
@@ -24,6 +27,23 @@ if (!fs.existsSync(DB_DIR)) {
 }
 if (!fs.existsSync(REPORTS_DIR)) {
   fs.mkdirSync(REPORTS_DIR, { recursive: true });
+}
+if (!fs.existsSync(IMAGES_DIR)) {
+  fs.mkdirSync(IMAGES_DIR, { recursive: true });
+}
+
+// Load Image Cache
+let imageCache: Record<string, string> = {};
+if (fs.existsSync(CACHE_FILE)) {
+  try {
+    imageCache = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf-8'));
+  } catch (err) {
+    imageCache = {};
+  }
+}
+
+function writeCache() {
+  fs.writeFileSync(CACHE_FILE, JSON.stringify(imageCache, null, 2), 'utf-8');
 }
 
 // Initial demo / seed data from user's cafe photos
@@ -316,6 +336,150 @@ function deductIngredients(items: OrderItem[], camarero: string) {
   }
 }
 
+// Fallback high quality food/drink images when offline or limit reached
+const FALLBACK_IMAGES: Record<string, string[]> = {
+  'pernil': [
+    'https://images.unsplash.com/photo-1553909489-cd47e0907980?w=400&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1525351484163-7529414344d8?w=400&h=400&fit=crop'
+  ],
+  'formatge': [
+    'https://images.unsplash.com/photo-1525351484163-7529414344d8?w=400&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1486299267070-83823f5448dd?w=400&h=400&fit=crop'
+  ],
+  'bikini': [
+    'https://images.unsplash.com/photo-1525351484163-7529414344d8?w=400&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1553909489-cd47e0907980?w=400&h=400&fit=crop'
+  ],
+  'cafè': [
+    'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1541167760496-1628856ab772?w=400&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&h=400&fit=crop'
+  ],
+  'tallat': [
+    'https://images.unsplash.com/photo-1541167760496-1628856ab772?w=400&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400&h=400&fit=crop'
+  ],
+  'croissant': [
+    'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=400&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&h=400&fit=crop'
+  ],
+  'donut': [
+    'https://images.unsplash.com/photo-1551024601-bec78aea704b?w=400&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?w=400&h=400&fit=crop'
+  ],
+  'tonyina': [
+    'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=400&h=400&fit=crop'
+  ],
+  'anxoves': [
+    'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=400&h=400&fit=crop'
+  ],
+  'refresc': [
+    'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=400&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=400&h=400&fit=crop'
+  ],
+  'cervesa': [
+    'https://images.unsplash.com/photo-1567696911980-2eed69a46042?w=400&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1608270586620-248524c67de9?w=400&h=400&fit=crop'
+  ],
+  'aigua': [
+    'https://images.unsplash.com/photo-1548839140-29a749e1cf4d?w=400&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1560031680-e8b9ca2e4c0d?w=400&h=400&fit=crop'
+  ],
+  'torrada': [
+    'https://images.unsplash.com/photo-1584776296974-e120f55117b5?w=400&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&h=400&fit=crop'
+  ]
+};
+
+async function downloadAndProcessImage(url: string, targetPath: string): Promise<void> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+  
+  try {
+    const res = await fetch(url, { 
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    
+    if (!res.ok) {
+      throw new Error(`Failed to download image from ${url}, status: ${res.status}`);
+    }
+    
+    const arrayBuffer = await res.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    
+    await sharp(buffer)
+      .resize(400, 400, {
+        fit: 'cover',
+        position: 'center'
+      })
+      .webp({ quality: 80 })
+      .toFile(targetPath);
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
+  }
+}
+
+async function searchImageForProduct(query: string): Promise<string[]> {
+  try {
+    // Check internet connection
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 3000);
+    await fetch('https://www.google.com', { method: 'HEAD', signal: controller.signal });
+    clearTimeout(id);
+  } catch (err) {
+    console.log('Offline: searchImageForProduct returning fallback list.');
+    return getFallbackList(query);
+  }
+
+  try {
+    const ai = getGemini();
+    const prompt = `Identify 5 high-quality direct public web URLs of real food photography representing the dish or product: "${query}". Return them strictly as a JSON array of strings containing direct image URLs. Direct means they must point to images (like Unsplash CDN images starting with https://images.unsplash.com/photo- or standard food images on Wikimedia). Do NOT return HTML pages, return ONLY the raw array of image URLs.`;
+    
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING }
+        },
+        tools: [{ googleSearch: {} }]
+      }
+    });
+
+    if (response.text) {
+      const urls = JSON.parse(response.text.trim());
+      if (Array.isArray(urls) && urls.length > 0) {
+        return urls.filter((u: any) => u && typeof u === 'string' && u.startsWith('http'));
+      }
+    }
+  } catch (err) {
+    console.error(`Gemini search failed for "${query}":`, err);
+  }
+
+  return getFallbackList(query);
+}
+
+function getFallbackList(query: string): string[] {
+  const queryLower = query.toLowerCase();
+  for (const [kw, urls] of Object.entries(FALLBACK_IMAGES)) {
+    if (queryLower.includes(kw)) {
+      return urls;
+    }
+  }
+  return [
+    'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=400&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&h=400&fit=crop'
+  ];
+}
+
 // Rate limiting state for pin
 let pinAttempts = 0;
 let pinLockoutUntil = 0;
@@ -328,6 +492,7 @@ async function startServer() {
   app.use(express.json());
   // Static file access for physical PDF reports
   app.use('/reportes-archivos', express.static(REPORTS_DIR));
+  app.use('/images/products', express.static(IMAGES_DIR));
 
   const server = http.createServer(app);
   const io = new Server(server, {
@@ -400,31 +565,175 @@ async function startServer() {
     }
   });
 
+  // --- INICIO MÓDULO CATÁLOGO INTELIGENTE ---
+  
+  // Endpoint 1: Buscar imágenes sugeridas para un producto (IA)
+  app.post('/api/catalog/search', async (req, res) => {
+    const { query } = req.body;
+    if (!query) {
+      return res.status(400).json({ error: 'Falta el término de búsqueda (query)' });
+    }
+    try {
+      const images = await searchImageForProduct(query);
+      res.json({ success: true, images });
+    } catch (err: any) {
+      console.error('Error en /api/catalog/search:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Endpoint 2: Descargar y procesar imagen seleccionada para un producto específico
+  app.post('/api/catalog/download-and-process', async (req, res) => {
+    const { productId, imageUrl } = req.body;
+    if (!productId || !imageUrl) {
+      return res.status(400).json({ error: 'Faltan campos obligatorios: productId, imageUrl' });
+    }
+
+    const index = db.products.findIndex(p => p.id === productId);
+    if (index === -1) {
+      return res.status(404).json({ error: 'Producto no encontrado' });
+    }
+
+    try {
+      const localFilename = `${productId}.webp`;
+      const localPath = path.join(IMAGES_DIR, localFilename);
+      await downloadAndProcessImage(imageUrl, localPath);
+      
+      const localUrl = `/images/products/${localFilename}`;
+      db.products[index].imagen_url = localUrl;
+      
+      // Cache the result
+      imageCache[db.products[index].nombre] = localUrl;
+      writeCache();
+
+      writeDB();
+      io.emit('products-changed', db.products);
+
+      res.json({ success: true, product: db.products[index] });
+    } catch (err: any) {
+      console.error('Error en /api/catalog/download-and-process:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Endpoint 3: Actualizar todas las imágenes vacías o incorrectas de forma masiva
+  app.post('/api/catalog/update-all', async (req, res) => {
+    try {
+      // 1. Comprobar conexión a internet
+      try {
+        const controller = new AbortController();
+        const tId = setTimeout(() => controller.abort(), 3000);
+        await fetch('https://www.google.com', { method: 'HEAD', signal: controller.signal });
+        clearTimeout(tId);
+      } catch (err) {
+        return res.status(503).json({ success: false, error: 'Sin conexión a Internet' });
+      }
+
+      const productsToUpdate = db.products.filter(p => !p.imagen_url || p.imagen_url.trim() === '');
+      if (productsToUpdate.length === 0) {
+        return res.json({ success: true, updatedCount: 0, message: 'Todos los productos ya tienen imágenes asignadas.' });
+      }
+
+      let updatedCount = 0;
+      for (const prod of productsToUpdate) {
+        const cachedUrl = imageCache[prod.nombre];
+        
+        if (cachedUrl && fs.existsSync(path.join(DB_DIR, cachedUrl.replace('/images/', '')))) {
+          // Re-use cached image
+          prod.imagen_url = cachedUrl;
+          updatedCount++;
+        } else {
+          // Search for a real image
+          const images = await searchImageForProduct(prod.nombre);
+          if (images && images.length > 0) {
+            // Try downloading and processing
+            for (const imgUrl of images) {
+              try {
+                const localFilename = `${prod.id}.webp`;
+                const localPath = path.join(IMAGES_DIR, localFilename);
+                await downloadAndProcessImage(imgUrl, localPath);
+                
+                const localUrl = `/images/products/${localFilename}`;
+                prod.imagen_url = localUrl;
+                imageCache[prod.nombre] = localUrl;
+                writeCache();
+                updatedCount++;
+                break; // Succeeded! Go to next product
+              } catch (downloadErr) {
+                console.error(`Failed to download ${imgUrl} for product ${prod.nombre}, trying next...`);
+              }
+            }
+          }
+        }
+      }
+
+      if (updatedCount > 0) {
+        writeDB();
+        io.emit('products-changed', db.products);
+      }
+
+      res.json({ success: true, updatedCount, message: `Se han actualizado ${updatedCount} productos con éxito.` });
+    } catch (err: any) {
+      console.error('Error en /api/catalog/update-all:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // --- FIN MÓDULO CATÁLOGO INTELIGENTE ---
+
   // Products CRUD endpoints
   app.get('/api/products', (req, res) => {
     res.json(db.products);
   });
 
-  app.post('/api/products', (req, res) => {
+  app.post('/api/products', async (req, res) => {
     const newProduct: Product = req.body;
     if (!newProduct.nombre || !newProduct.categoria || newProduct.precio === undefined) {
       return res.status(400).json({ error: 'Faltan campos obligatorios en el producto' });
     }
-    // Generate simple incremental ID
-    newProduct.id = `${newProduct.categoria.toLowerCase().substring(0, 1)}-${Date.now()}`;
+    const prodId = `${newProduct.categoria.toLowerCase().substring(0, 1)}-${Date.now()}`;
+    newProduct.id = prodId;
+
+    if (newProduct.imagen_url && newProduct.imagen_url.startsWith('http')) {
+      try {
+        const localFilename = `${prodId}.webp`;
+        const localPath = path.join(IMAGES_DIR, localFilename);
+        await downloadAndProcessImage(newProduct.imagen_url, localPath);
+        newProduct.imagen_url = `/images/products/${localFilename}`;
+        imageCache[newProduct.nombre] = newProduct.imagen_url;
+        writeCache();
+      } catch (err) {
+        console.error('Error localizing created product image:', err);
+      }
+    }
+
     db.products.push(newProduct);
     writeDB();
     io.emit('products-changed', db.products);
     res.status(201).json(newProduct);
   });
 
-  app.put('/api/products/:id', (req, res) => {
+  app.put('/api/products/:id', async (req, res) => {
     const { id } = req.params;
     const fieldUpdates: Partial<Product> = req.body;
     const index = db.products.findIndex(p => p.id === id);
     if (index === -1) {
       return res.status(404).json({ error: 'Producto no encontrado' });
     }
+
+    if (fieldUpdates.imagen_url && fieldUpdates.imagen_url.startsWith('http')) {
+      try {
+        const localFilename = `${id}.webp`;
+        const localPath = path.join(IMAGES_DIR, localFilename);
+        await downloadAndProcessImage(fieldUpdates.imagen_url, localPath);
+        fieldUpdates.imagen_url = `/images/products/${localFilename}`;
+        imageCache[db.products[index].nombre] = fieldUpdates.imagen_url;
+        writeCache();
+      } catch (err) {
+        console.error('Error localizing updated product image:', err);
+      }
+    }
+
     db.products[index] = { ...db.products[index], ...fieldUpdates };
     writeDB();
     io.emit('products-changed', db.products);

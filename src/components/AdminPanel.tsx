@@ -154,6 +154,17 @@ export default function AdminPanel({
   const [newProdAlergenos, setNewProdAlergenos] = useState<string[]>([]);
   const [isAddingProduct, setIsAddingProduct] = useState(false);
 
+  // Intelligent Catalog State
+  const [updatingAllImages, setUpdatingAllImages] = useState(false);
+  const [newProdImageOptions, setNewProdImageOptions] = useState<string[]>([]);
+  const [searchingNewProdImages, setSearchingNewProdImages] = useState(false);
+  const [newProdSelectedImage, setNewProdSelectedImage] = useState('');
+  
+  const [manualImageSelectorProduct, setManualImageSelectorProduct] = useState<Product | null>(null);
+  const [manualImageOptions, setManualImageOptions] = useState<string[]>([]);
+  const [searchingManualImages, setSearchingManualImages] = useState(false);
+  const [selectedManualImage, setSelectedManualImage] = useState('');
+
   // Allergens dictionary mock helper to select checkboxes
   const AVAILABLE_ALLERGENS = [
     'Cereales', 'Apio', 'Cacahuete', 'Crustáceos', 'Frutos secos', 'Huevos', 'Lácteos',
@@ -425,7 +436,7 @@ export default function AdminPanel({
         categoria: newProdCat,
         precio: Number(newProdPrice),
         stock: Number(newProdStock),
-        imagen_url: '',
+        imagen_url: newProdSelectedImage,
         activo: true,
         alergenos: newProdAlergenos
       });
@@ -436,9 +447,116 @@ export default function AdminPanel({
       setNewProdPrice(0);
       setNewProdStock(20);
       setNewProdAlergenos([]);
+      setNewProdImageOptions([]);
+      setNewProdSelectedImage('');
       alert('✅ Producto incorporado satisfactoriamente.');
     } catch (e) {
       alert('Error creando el artículo de inventario.');
+    }
+  };
+
+  /* =========================================================================
+     MÓDULO CATÁLOGO INTELIGENTE HANDLERS
+     ========================================================================= */
+  const handleUpdateAllImages = async () => {
+    if (!confirm('¿Desea iniciar la actualización inteligente del catálogo? Esto buscará fotografías reales en Internet para todos los productos sin imagen.')) return;
+    setUpdatingAllImages(true);
+    try {
+      const res = await fetch('/api/catalog/update-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        onRefreshProducts();
+        alert(`✅ Proceso finalizado. Se han actualizado ${data.updatedCount} imágenes de productos.`);
+      } else {
+        alert(`⚠️ No se pudo realizar la actualización automática: ${data.error || 'Error desconocido'}`);
+      }
+    } catch (err) {
+      alert('⚠️ Error de conexión al servidor.');
+    } finally {
+      setUpdatingAllImages(false);
+    }
+  };
+
+  const handleSearchNewProductImages = async () => {
+    if (!newProdName) return;
+    setSearchingNewProdImages(true);
+    setNewProdImageOptions([]);
+    try {
+      const res = await fetch('/api/catalog/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: newProdName })
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.images) {
+        setNewProdImageOptions(data.images);
+        if (data.images.length > 0) {
+          setNewProdSelectedImage(data.images[0]); // default to first option
+        }
+      } else {
+        alert('⚠️ No se encontraron imágenes sugeridas para este nombre.');
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSearchingNewProdImages(false);
+    }
+  };
+
+  const handleAutoselectNewProductImage = () => {
+    if (newProdImageOptions.length > 0) {
+      setNewProdSelectedImage(newProdImageOptions[0]);
+    }
+  };
+
+  const openManualImageSelector = async (prod: Product) => {
+    setManualImageSelectorProduct(prod);
+    setSearchingManualImages(true);
+    setManualImageOptions([]);
+    setSelectedManualImage('');
+    try {
+      const res = await fetch('/api/catalog/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: prod.nombre })
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.images) {
+        setManualImageOptions(data.images);
+        if (data.images.length > 0) {
+          setSelectedManualImage(data.images[0]);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSearchingManualImages(false);
+    }
+  };
+
+  const handleSaveManualImage = async () => {
+    if (!manualImageSelectorProduct || !selectedManualImage) return;
+    try {
+      const res = await fetch('/api/catalog/download-and-process', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: manualImageSelectorProduct.id,
+          imageUrl: selectedManualImage
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        onRefreshProducts();
+        setManualImageSelectorProduct(null);
+      } else {
+        alert(`⚠️ Error al guardar la imagen: ${data.error || 'Error desconocido'}`);
+      }
+    } catch (err) {
+      alert('⚠️ Error al comunicarse con el servidor.');
     }
   };
 
@@ -823,13 +941,23 @@ export default function AdminPanel({
                 </h2>
 
             {/* Quick selectors / triggers */}
-            <button
-              onClick={() => setIsAddingProduct(!isAddingProduct)}
-              className="bg-[#FF00FF] hover:bg-fuchsia-700 text-black px-4 py-2 font-mono font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center space-x-1 outline-none"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Añadir Nuevo Producto</span>
-            </button>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => setIsAddingProduct(!isAddingProduct)}
+                className="bg-[#FF00FF] hover:bg-fuchsia-700 text-black px-4 py-2 font-mono font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center space-x-1 outline-none"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Añadir Nuevo Producto</span>
+              </button>
+              <button
+                onClick={handleUpdateAllImages}
+                disabled={updatingAllImages}
+                className="bg-black hover:bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white px-4 py-2 font-mono font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center space-x-1.5 outline-none disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${updatingAllImages ? 'animate-spin text-[#FF00FF]' : ''}`} />
+                <span>{updatingAllImages ? 'Actualizando...' : 'Actualizar Imágenes'}</span>
+              </button>
+            </div>
           </div>
 
           {/* Add product expandable form */}
@@ -919,6 +1047,74 @@ export default function AdminPanel({
                 </div>
               </div>
 
+              {/* Intelligent Image Selector */}
+              <div className="col-span-full border-t border-zinc-800 pt-3 mt-1 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-zinc-500 block font-mono text-[10px] uppercase">Fotografía del Producto (Búsqueda IA / Manual):</span>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={handleSearchNewProductImages}
+                      disabled={!newProdName || searchingNewProdImages}
+                      className="bg-[#FF00FF]/15 border border-[#FF00FF]/40 text-[#FF00FF] hover:bg-[#FF00FF]/25 px-2 py-1 font-mono text-[10px] uppercase rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      {searchingNewProdImages ? 'Buscando Fotos...' : '🔍 Buscar Fotos en Internet (IA)'}
+                    </button>
+                    {newProdImageOptions.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleAutoselectNewProductImage}
+                        className="bg-zinc-850 border border-zinc-800 text-zinc-300 hover:text-white px-2 py-1 font-mono text-[10px] uppercase rounded-lg transition-colors cursor-pointer"
+                      >
+                        Auto-seleccionar mejor
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {searchingNewProdImages && (
+                  <div className="text-[10px] text-zinc-550 font-mono animate-pulse">
+                    Conectando con el Catálogo Inteligente y buscando fotografías reales...
+                  </div>
+                )}
+
+                {newProdImageOptions.length > 0 && (
+                  <div className="flex gap-2.5 overflow-x-auto pb-1.5 scrollbar-thin scrollbar-thumb-zinc-800">
+                    {newProdImageOptions.map((optUrl, i) => {
+                      const isSelected = newProdSelectedImage === optUrl;
+                      return (
+                        <button
+                          type="button"
+                          key={i}
+                          onClick={() => setNewProdSelectedImage(optUrl)}
+                          className={`relative w-20 h-20 rounded-xl overflow-hidden border-2 flex-shrink-0 transition-all ${
+                            isSelected ? 'border-[#FF00FF] scale-95 shadow-[0_0_8px_rgba(255,0,255,0.4)]' : 'border-zinc-800 hover:border-zinc-700'
+                          }`}
+                        >
+                          <img 
+                            src={optUrl} 
+                            alt={`Opción ${i + 1}`} 
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover" 
+                          />
+                          {isSelected && (
+                            <div className="absolute inset-0 bg-[#FF00FF]/15 flex items-center justify-center">
+                              <span className="bg-[#FF00FF] text-black font-black text-[8px] px-1 rounded">SEL</span>
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {newProdSelectedImage && (
+                  <div className="text-[10px] text-[#FF00FF] font-mono flex items-center space-x-1">
+                    <span>✓ Imagen seleccionada:</span>
+                    <span className="truncate max-w-md text-zinc-400">{newProdSelectedImage}</span>
+                  </div>
+                )}
+              </div>
+
             </form>
           )}
 
@@ -979,7 +1175,30 @@ export default function AdminPanel({
                   ) : (
                     filteredInventory.map((item) => (
                       <tr key={item.id} className="hover:bg-zinc-950/40">
-                        <td className="py-3 px-4 font-bold text-white text-xs">{item.nombre}</td>
+                        <td className="py-3 px-4 font-bold text-white text-xs">
+                          <div className="flex items-center space-x-3">
+                            <div className="relative group w-10 h-10 bg-zinc-950 rounded-xl overflow-hidden border border-zinc-850 flex items-center justify-center flex-shrink-0">
+                              {item.imagen_url ? (
+                                <img 
+                                  src={item.imagen_url} 
+                                  alt={item.nombre} 
+                                  referrerPolicy="no-referrer"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <span className="text-[9px] text-zinc-650 font-bold uppercase">Sin foto</span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => openManualImageSelector(item)}
+                                className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[9px] text-[#FF00FF] font-black uppercase tracking-tighter transition-opacity cursor-pointer"
+                              >
+                                Cambiar
+                              </button>
+                            </div>
+                            <span>{item.nombre}</span>
+                          </div>
+                        </td>
                         <td className="py-3 px-3 text-zinc-400 font-semibold">{item.categoria}</td>
                         <td className="py-3 px-3 text-center text-[#FF00FF] font-bold text-xs">{item.precio.toFixed(2)}€</td>
                         <td className="py-3 px-4 text-center">
@@ -1576,6 +1795,90 @@ export default function AdminPanel({
 
       {activeTab === 'ai' && (
         <AiConsultingTab />
+      )}
+
+      {/* MANUAL IMAGE SELECTOR MODAL */}
+      {manualImageSelectorProduct && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+          <div className="bg-[#0c0c0c] border border-zinc-800 rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-start">
+              <div>
+                <span className="text-[10px] font-bold text-[#FF00FF] font-mono uppercase tracking-widest block">CATÁLOGO INTELIGENTE (IA)</span>
+                <h3 className="text-white text-base font-extrabold mt-1 font-mono">Cambiar fotografía de {manualImageSelectorProduct.nombre}</h3>
+              </div>
+              <button 
+                onClick={() => setManualImageSelectorProduct(null)}
+                className="text-zinc-550 hover:text-white font-mono text-lg cursor-pointer animate-pulse"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <span className="text-zinc-500 block font-mono text-[10px] uppercase">Fotografías sugeridas encontradas en internet:</span>
+
+              {searchingManualImages && (
+                <div className="py-8 text-center text-zinc-550 font-mono text-xs animate-pulse">
+                  🔍 Conectando con los CDNs y buscando imágenes reales...
+                </div>
+              )}
+
+              {!searchingManualImages && manualImageOptions.length === 0 && (
+                <div className="py-8 text-center text-zinc-650 font-mono text-xs italic">
+                  No se encontraron fotografías para este producto.
+                </div>
+              )}
+
+              {!searchingManualImages && manualImageOptions.length > 0 && (
+                <div className="grid grid-cols-3 gap-3 animate-fadeIn">
+                  {manualImageOptions.map((optUrl, i) => {
+                    const isSelected = selectedManualImage === optUrl;
+                    return (
+                      <button
+                        type="button"
+                        key={i}
+                        onClick={() => setSelectedManualImage(optUrl)}
+                        className={`relative aspect-square rounded-2xl overflow-hidden border-2 transition-all ${
+                          isSelected ? 'border-[#FF00FF] scale-95 shadow-[0_0_12px_rgba(255,0,255,0.5)]' : 'border-zinc-800 hover:border-zinc-750'
+                        }`}
+                      >
+                        <img 
+                          src={optUrl} 
+                          alt={`Sugerencia ${i + 1}`} 
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover" 
+                        />
+                        {isSelected && (
+                          <div className="absolute inset-0 bg-[#FF00FF]/15 flex items-center justify-center">
+                            <span className="bg-[#FF00FF] text-black font-black text-[9px] px-1.5 py-0.5 rounded">SEL</span>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex space-x-2 pt-2 border-t border-zinc-900">
+              <button
+                type="button"
+                onClick={() => setManualImageSelectorProduct(null)}
+                className="flex-1 py-2 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white font-bold font-mono text-xs uppercase rounded-xl transition-all cursor-pointer text-center"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveManualImage}
+                disabled={!selectedManualImage}
+                className="flex-1 py-2 bg-[#FF00FF] hover:bg-fuchsia-700 text-black font-bold font-mono text-xs uppercase rounded-xl transition-all cursor-pointer text-center disabled:opacity-50"
+              >
+                Guardar Imagen
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>
