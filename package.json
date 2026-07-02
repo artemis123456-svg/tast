@@ -1,7 +1,8 @@
 {
-  "name": "react-example",
+  "name": "tast-tpv",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "author": "Verini",
   "main": "electron-main.cjs",
   "type": "module",
   "scripts": {
@@ -43,25 +44,28 @@
     "vite": "^6.2.3"
   },
   "build": {
-    "appId": "com.eltast.tpv",
-    "productName": "El Tast TPV",
+    "appId": "com.verini.tasttpv",
+    "productName": "Tast TPV",
     "win": {
       "target": [
         "nsis"
       ],
-      "icon": "public/favicon.ico"
+      "icon": "public/favicon.ico",
+      "executableName": "TastTPV",
+      "publisherName": "Verini"
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": true,
-      "allowToChangeInstallationDirectory": false,
-      "createDesktopShortcut": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
-      "shortcutName": "El Tast TPV",
+      "shortcutName": "Tast TPV",
       "installerIcon": "public/favicon.ico",
       "uninstallerIcon": "public/favicon.ico",
-      "uninstallDisplayName": "El Tast TPV (Desinstalar)",
-      "runAfterFinish": true
+      "uninstallDisplayName": "Tast TPV (Desinstalar)",
+      "runAfterFinish": true,
+      "artifactName": "TastTPV_Setup.${ext}"
     },
     "files": [
       "dist/**/*",

@@ -12,7 +12,10 @@ let mainWindow;
 let serverProcess;
 
 // Create logs directory in AppData for Windows Support and debugging
-const logDir = path.join(app.getPath('userData'), 'Logs');
+const userDataPath = app.getPath('userData');
+process.env.TAST_TPV_DATA_DIR = userDataPath;
+
+const logDir = path.join(userDataPath, 'Logs');
 if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir, { recursive: true });
 }
@@ -37,6 +40,8 @@ function startLocalServer() {
       // Set production flags and override default paths
       process.env.NODE_ENV = 'production';
       process.env.PORT = '3000';
+      process.env.TAST_TPV_DATA_DIR = userDataPath;
+      logToFile(`Estableciendo directorio de datos TAST_TPV_DATA_DIR en: ${userDataPath}`);
       
       // Use fork to isolate the Node server and avoid blocking the Electron main thread
       serverProcess = fork(serverPath, [], {

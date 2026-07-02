@@ -14,10 +14,11 @@ import { Product, Order, AppConfig, OrderItem, OrderStatus, ProductCategory, Tab
 import { GoogleGenAI, Type } from '@google/genai';
 import sharp from 'sharp';
 
-// Establish relative paths
-const DB_DIR = path.join(process.cwd(), 'data');
+// Establish persistent paths
+const BASE_DATA_DIR = process.env.TAST_TPV_DATA_DIR || process.cwd();
+const DB_DIR = path.join(BASE_DATA_DIR, 'data');
 const DB_FILE = path.join(DB_DIR, 'db.json');
-const REPORTS_DIR = path.join(process.cwd(), 'Reportes');
+const REPORTS_DIR = path.join(BASE_DATA_DIR, 'Reportes');
 const IMAGES_DIR = path.join(DB_DIR, 'images');
 const CACHE_FILE = path.join(DB_DIR, 'image-cache.json');
 
@@ -101,16 +102,16 @@ const INITIAL_PRODUCTS: Product[] = [
 
 const DEFAULT_CONFIG: AppConfig = {
   ticket: {
-    header: 'EL TAST CAFETERIA',
-    direccion: 'Carrer de la Rutlla, 45, Girona',
+    header: 'EL TAST',
+    direccion: 'Calle Mayor, 12, Girona',
     telefono: '+34 972 55 88 22',
     cif: 'B-12345678A',
-    pie_pagina: 'Gràcies per la vostra visita!\nFins aviat!',
+    pie_pagina: '¡Gracias por su visita!\n¡Hasta pronto!',
     iva: 10
   },
   printer: {
     port: 'USB001',
-    name: 'Thermal Printer 80mm (ESPON T88)',
+    name: 'Impresora Térmica 80mm (EPSON T88)',
     type: 'USB',
     status: 'Conectado'
   },
